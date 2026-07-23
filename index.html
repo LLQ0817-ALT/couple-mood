@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>情侣心情小屋</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui}
+body{min-height:100vh;background:linear-gradient(135deg,#ffd6e0,#fff2f6);padding:20px;}
+.container{max-width:480px;margin:0 auto;}
+.box{background:rgba(255,255,255,0.85);border-radius:22px;padding:24px;margin-bottom:16px;box-shadow:0 6px 24px rgba(230,120,160,0.15);}
+h2{text-align:center;color:#c84b78;margin-bottom:20px;font-size:22px}
+input{width:100%;padding:14px 16px;border:1px solid #f0c2d2;border-radius:14px;font-size:18px;outline:none;margin-bottom:16px}
+.btn{width:100%;padding:15px;border:none;border-radius:14px;font-size:17px;font-weight:bold;color:#fff;background:#e86892;margin:8px 0}
+.btn:active{opacity:0.85}
+.btn-gray{background:#b8b8b8}
+.role-wrap{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.role-card{padding:20px;text-align:center;border-radius:16px;border:2px solid transparent;background:#fff}
+.role-card.active{border-color:#e86892;background:#fff0f5}
+.emoji-buttons{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px}
+.mood-btn{padding:14px;border-radius:12px;border:1px solid #eed0dd;background:#fff;font-size:15px}
+.mood-btn.active{background:#ffd6e0;border-color:#e86892}
+.tip-text{margin-top:12px;padding:14px;background:#fff0f5;border-radius:12px;color:#913558;line-height:1.6}
+.page{display:none}
+.page.active{display:block}
+.other-mood{text-align:center;padding:16px;background:#fff;border-radius:16px;margin-bottom:16px}
+.emo-big{font-size:60px;margin:8px 0}
+.loading{color:#888;text-align:center;margin:10px 0;}
+</style>
+</head>
+<body>
+<div class="container">
+<div id="page-room" class="page active">
+<div class="box">
+<h2>💌情侣心情小屋</h2>
+<input id="roomInput" placeholder="输入4~6位房间号" type="number">
+<button class="btn" onclick="enterRoom()">进入小屋</button>
+<div class="loading">两人输入相同房间号配对</div>
+</div>
+</div>
+
+<div id="page-role" class="page">
+<div class="box">
+<h2>选择你的身份</h2>
+<div class="role-wrap">
+<div class="role-card" id="girlCard" onclick="selectRole('girl')">👩 女生</div>
+<div class="role-card" id="boyCard" onclick="selectRole('boy')">👨 男生</div>
+</div>
+<button class="btn" onclick="enterMain()">确认进入</button>
+<button class="btn btn-gray" onclick="backRoom()">返回</button>
+</div>
+</div>
+
+<div id="page-main" class="page">
+<div class="other-mood">
+<div>对方当前心情</div>
+<div class="emo-big" id="otherEmoji">❓</div>
+<div id="otherText">等待对方选择心情</div>
+<div class="tip-text" id="otherTip"></div>
+</div>
+<div class="box">
+<h2>选择我的心情</h2>
+<div class="emoji-buttons" id="moodWrap"></div>
+</div>
+<div class="loading" id="syncStatus">同步中...</div>
+<button class="btn btn-gray" onclick="logout()">退出房间</button>
+</div>
+</div>
+</div>
+
+<script>
+let roomId = "";
+let myRole = "";
+let pollTimer = null;
+//部署完成拿到域名后，替换这里！！
+const BASE_URL = "https://xxx.pages.dev";
+
+const girlMoods = [
+{emo:"😤",name:"生气",desc:"我现在很生气",action:"男朋友请这样做：买奶茶/小蛋糕哄我，先认错，不要讲道理顶嘴"},
+{emo:"🥺",name:"委屈",desc:"心里好委屈",action:"男朋友请这样做：抱抱我，认真倾听，站我这边，别急于争辩"},
+{emo:"🥰",name:"想你了",desc:"超级想你",action:"男朋友请这样做：马上回应想念，有空打视频，抽空见面"},
+{emo:"😴",name:"累了",desc:"身心疲惫",action:"男朋友请这样做：让我安静休息，可以帮我捏肩，不要一直打扰"},
+{emo:"🍜",name:"饿了",desc:"肚子饿饿",action:"男朋友请这样做：主动点外卖或者约饭，安排好吃的"},
+{emo:"😐",name:"无聊",desc:"有点无聊",action:"男朋友请这样做：陪我聊天，找事情一起打发时间"},
+{emo:"🥳",name:"开心",desc:"今天很开心",action:"男朋友请这样做：一起庆祝，带我去吃喜欢的美食"},
+{emo:"🥺",name:"撒娇",desc:"想要被宠爱",action:"男朋友请这样做：顺着我，多说甜话，满足小愿望"}
+];
+
+const boyMoods = [
+{emo:"😤",name:"烦躁",desc:"心里烦躁",action:"女朋友请这样做：安静陪伴，少抬杠，等情绪缓和再沟通"},
+{emo:"😔",name:"压力大",desc:"工作压力很重",action:"女朋友请这样做：多鼓励，不要增加额外负担，给一点独处空间"},
+{emo:"😴",name:"累了",desc:"身心很累",action:"女朋友请这样做：让他好好休息，简单关心，不用持续聊天"},
+{emo:"🥰",name:"想你了",desc:"很想你",action:"女朋友请这样做：热情回应思念，分享日常小事"},
+{emo:"🍔",name:"饿了",desc:"肚子饿",action:"女朋友请这样做：一起找吃的，或者帮忙点一份餐"},
+{emo:"🎮",name:"打游戏中",desc:"正在打游戏",action:"女朋友请这样做：稍微耐心等候，打完游戏再好好聊天"},
+{emo:"😐",name:"无聊",desc:"无事可做",action:"女朋友请这样做：聊聊趣事，一起找点娱乐"},
+{emo:"😃",name:"开心",desc:"心情不错",action:"女朋友请这样做：一起分享喜悦，轻松唠嗑"}
+];
+
+function switchPage(id){
+document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'))
+document.getElementById(id).classList.add('active')
+}
+
+function enterRoom(){
+roomId = document.getElementById('roomInput').value.trim()
+if(roomId.length<4){alert("房间号至少4位数字");return}
+switchPage("page-role")
+}
+function backRoom(){switchPage("page-room")}
+
+function selectRole(r){
+myRole=r;
+document.getElementById('girlCard').classList.toggle('active',r==='girl')
+document.getElementById('boyCard').classList.toggle('active',r==='boy')
+}
+
+function enterMain(){
+if(!myRole){alert("请选择身份！");return}
+renderMoodButtons()
+switchPage("page-main")
+startPoll()
+}
+
+function renderMoodButtons(){
+const wrap=document.getElementById("moodWrap")
+wrap.innerHTML=""
+let list = myRole==="girl"?girlMoods:boyMoods
+list.forEach((item,idx)=>{
+let btn=document.createElement("button")
+btn.className="mood-btn"
+btn.innerHTML=`${item.emo} ${item.name}`
+btn.onclick=()=>setMyMood(idx)
+wrap.appendChild(btn)
+})
+}
+
+async function setMyMood(index){
+let list = myRole==="girl"?girlMoods:boyMoods
+let data = list[index]
+try{
+await fetch(`${BASE_URL}/api/store`,{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({room:roomId,role:myRole,mood:data})
+})
+}catch(e){
+alert("网络异常，同步失败");
+}
+}
+
+async function fetchPartnerMood(){
+let otherRole = myRole==="girl"?"boy":"girl"
+try{
+const res = await fetch(`${BASE_URL}/api/store?room=${roomId}&role=${otherRole}`)
+return await res.json()
+}catch{
+return null
+}
+}
+
+function startPoll(){
+if(pollTimer) clearInterval(pollTimer)
+pollTimer = setInterval(async ()=>{
+document.getElementById("syncStatus").innerText="同步中..."
+let other = await fetchPartnerMood()
+if(other && other.emo){
+document.getElementById("otherEmoji").innerText=other.emo
+document.getElementById("otherText").innerText=other.desc
+document.getElementById("otherTip").innerText=other.action
+}else{
+document.getElementById("otherEmoji").innerText="❓"
+document.getElementById("otherText").innerText="对方还未选择心情"
+document.getElementById("otherTip").innerText=""
+}
+document.getElementById("syncStatus").innerText="同步完成"
+},2000)
+}
+
+function logout(){
+roomId=""
+myRole=""
+if(pollTimer) clearInterval(pollTimer)
+document.getElementById('roomInput').value=""
+switchPage("page-room")
+}
+</script>
+</body>
+</html>
