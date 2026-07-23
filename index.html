@@ -26,6 +26,10 @@ input{width:100%;padding:14px 16px;border:1px solid #f0c2d2;border-radius:14px;f
 .other-mood{text-align:center;padding:16px;background:#fff;border-radius:16px;margin-bottom:16px}
 .emo-big{font-size:60px;margin:8px 0}
 .loading{color:#888;text-align:center;margin:10px 0;}
+/*新增：对方心情应对方案区域*/
+.suggest-box{margin-top:16px;padding:16px;background:#fff0f5;border-radius:16px;display:none;}
+.suggest-box h4{color:#c84b78;margin-bottom:8px;}
+.suggest-box p{color:#666;line-height:1.7;}
 </style>
 </head>
 <body>
@@ -49,6 +53,11 @@ input{width:100%;padding:14px 16px;border:1px solid #f0c2d2;border-radius:14px;f
             <div class="emo-big" id="otherEmo">❓</div>
             <h3>对方当前心情</h3>
             <p id="otherText">对方还未选择心情</p>
+            <!-- 【重点】对方情绪对应的解决方案区域 -->
+            <div class="suggest-box" id="suggestPanel">
+                <h4>💡建议怎么做</h4>
+                <p id="suggestText"></p>
+            </div>
         </div>
 
         <div class="box">
@@ -70,9 +79,7 @@ input{width:100%;padding:14px 16px;border:1px solid #f0c2d2;border-radius:14px;f
 </div>
 
 <script>
-// =========【这里确认链接正确！不要末尾斜杠】=========
 const BASE_URL = "https://couple-mood.pages.dev";
-// ==================================================
 
 let roomId = "";
 let myRole = "";
@@ -88,6 +95,18 @@ const emoMap = {
     "打游戏中":"🎮",
     "无聊":"😐",
     "开心":"😃"
+};
+
+// =====【这里可以自由修改每种情绪对应的安抚方案】=====
+const solutionMap = {
+    "烦躁":"先安静抱抱对方，耐心倾听，不要讲道理；等情绪平复之后好好沟通。",
+    "压力大":"多给予鼓励，陪伴对方歇一会，主动分担琐事，不要催促。",
+    "累了":"让对方好好休息，准备温水，安静陪伴，减少打扰。",
+    "想你了":"及时回应思念，抽空视频或者见面，多表达我也想你。",
+    "饿了":"询问想吃什么，可以点外卖、准备小吃，一起找点好吃的。",
+    "打游戏中":"不随意打扰，约定好结束时间，打完之后好好聊天。",
+    "无聊":"一起找剧、散步、聊天，或者规划短途小事打发时间。",
+    "开心":"一起分享喜悦，多多夸赞对方，留住好心情。"
 };
 
 // 角色选择
@@ -106,10 +125,8 @@ document.getElementById("enterBtn").onclick = async ()=>{
         alert("请填写房间暗号并选择你的身份");
         return;
     }
-    // 切换页面
     document.getElementById("page-room").classList.remove("active");
     document.getElementById("page-main").classList.add("active");
-    // 开始轮询拉取对方心情
     startPoll();
 }
 
@@ -120,26 +137,25 @@ document.getElementById("exitBtn").onclick = ()=>{
     document.getElementById("page-room").classList.add("active");
     document.querySelectorAll(".role-card").forEach(c=>c.classList.remove("active"));
     document.querySelectorAll(".mood-btn").forEach(b=>b.classList.remove("active"));
+    document.getElementById("suggestPanel").style.display = "none";
     roomId = "";
     myRole = "";
 }
 
-// 【核心优化】点击心情：先立刻更新UI，再后台发请求
+// 点击心情UI优化
 document.querySelectorAll(".mood-btn").forEach(btn=>{
     btn.onclick = async ()=>{
         const moodVal = btn.dataset.val;
-        // 1. 立刻切换选中样式（优先UI，不等待网络）
         document.querySelectorAll(".mood-btn").forEach(b=>b.classList.remove("active"));
         btn.classList.add("active");
 
-        // 2. 后台异步提交，不阻塞界面
         document.getElementById("syncText").innerText = "同步中...";
         try{
             const res = await fetch(`${BASE_URL}/api/store?room=${roomId}&role=${myRole}`,{
                 method:"POST",
                 headers:{"Content-Type":"application/json"},
                 body:JSON.stringify({mood:moodVal}),
-                signal:AbortSignal.timeout(6000) // 6秒超时
+                signal:AbortSignal.timeout(6000)
             });
             if(res.ok){
                 document.getElementById("syncText").innerText = "同步完成";
@@ -152,7 +168,7 @@ document.querySelectorAll(".mood-btn").forEach(btn=>{
     }
 })
 
-// 轮询获取对方心情
+// 轮询拉取对方心情 + 自动展示解决方案
 function startPoll(){
     if(pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(fetchOtherMood, 2500);
@@ -172,14 +188,17 @@ async function fetchOtherMood(){
         });
         const data = await resp.json();
         if(data && data.mood){
-            document.getElementById("otherEmo").innerText = emoMap[data.mood] || "❓";
+            document.getElementById("otherEmo").innerText = emoMap[data.mood];
             document.getElementById("otherText").innerText = data.mood;
+            //展示对应安抚方案
+            document.getElementById("suggestPanel").style.display = "block";
+            document.getElementById("suggestText").innerText = solutionMap[data.mood];
         }else{
             document.getElementById("otherEmo").innerText = "❓";
             document.getElementById("otherText").innerText = "对方还未选择心情";
+            document.getElementById("suggestPanel").style.display = "none";
         }
     }catch(e){
-        // 拉取失败静默跳过，不干扰界面
     }
 }
 </script>
