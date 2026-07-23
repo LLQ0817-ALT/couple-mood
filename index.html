@@ -20,13 +20,11 @@ input{width:100%;padding:14px 16px;border:1px solid #f0c2d2;border-radius:14px;f
 .emoji-buttons{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px}
 .mood-btn{padding:14px;border-radius:12px;border:1px solid #eed0dd;background:#fff;font-size:15px}
 .mood-btn.active{background:#ffd6e0;border-color:#e86892;outline:2px solid #000;}
-.tip-text{margin-top:12px;padding:14px;background:#fff0f5;border-radius:12px;color:#913558;line-height:1.6}
 .page{display:none;}
 .page.active{display:block;}
 .other-mood{text-align:center;padding:16px;background:#fff;border-radius:16px;margin-bottom:16px}
 .emo-big{font-size:60px;margin:8px 0}
 .loading{color:#888;text-align:center;margin:10px 0;}
-/*新增：对方心情应对方案区域*/
 .suggest-box{margin-top:16px;padding:16px;background:#fff0f5;border-radius:16px;display:none;}
 .suggest-box h4{color:#c84b78;margin-bottom:8px;}
 .suggest-box p{color:#666;line-height:1.7;}
@@ -53,7 +51,6 @@ input{width:100%;padding:14px 16px;border:1px solid #f0c2d2;border-radius:14px;f
             <div class="emo-big" id="otherEmo">❓</div>
             <h3>对方当前心情</h3>
             <p id="otherText">对方还未选择心情</p>
-            <!-- 【重点】对方情绪对应的解决方案区域 -->
             <div class="suggest-box" id="suggestPanel">
                 <h4>💡建议怎么做</h4>
                 <p id="suggestText"></p>
@@ -63,14 +60,7 @@ input{width:100%;padding:14px 16px;border:1px solid #f0c2d2;border-radius:14px;f
         <div class="box">
             <h2>选择我的心情</h2>
             <div class="emoji-buttons" id="moodWrap">
-                <button class="mood-btn" data-val="烦躁">😤 烦躁</button>
-                <button class="mood-btn" data-val="压力大">😔 压力大</button>
-                <button class="mood-btn" data-val="累了">😴 累了</button>
-                <button class="mood-btn" data-val="想你了">🥰 想你了</button>
-                <button class="mood-btn" data-val="饿了">🍔 饿了</button>
-                <button class="mood-btn" data-val="打游戏中">🎮 打游戏中</button>
-                <button class="mood-btn" data-val="无聊">😐 无聊</button>
-                <button class="mood-btn" data-val="开心">😃 开心</button>
+                <!-- 按钮由JS动态生成，男女不同 -->
             </div>
             <div class="loading" id="syncText">同步完成</div>
             <button class="btn btn-gray" id="exitBtn" style="margin-top:20px;">退出房间</button>
@@ -85,27 +75,45 @@ let roomId = "";
 let myRole = "";
 let pollTimer = null;
 
-// 表情映射
-const emoMap = {
-    "烦躁":"😤",
-    "压力大":"😔",
-    "累了":"😴",
-    "想你了":"🥰",
-    "饿了":"🍔",
-    "打游戏中":"🎮",
-    "无聊":"😐",
-    "开心":"😃"
+// ========== 情绪配置：男女各自选项 ==========
+const moodList = {
+    girl: [
+        {val:"来姨妈了",emo:"😤"},
+        {val:"生气",emo:"😠"},
+        {val:"好困",emo:"😴"},
+        {val:"想你了",emo:"🥰"},
+        {val:"饿了",emo:"🍔"},
+        {val:"追剧",emo:"📺"},
+        {val:"无聊",emo:"😐"},
+        {val:"想出门",emo:"🚶"}
+    ],
+    boy: [
+        {val:"烦躁",emo:"😤"},
+        {val:"压力大",emo:"😔"},
+        {val:"累了",emo:"😴"},
+        {val:"想你了",emo:"🥰"},
+        {val:"饿了",emo:"🍔"},
+        {val:"打游戏中",emo:"🎮"},
+        {val:"无聊",emo:"😐"},
+        {val:"开心",emo:"😃"}
+    ]
 };
 
-// =====【这里可以自由修改每种情绪对应的安抚方案】=====
+// 表情总映射
+const emoMap = {};
+// 应对方案（你可以随时修改文案）
 const solutionMap = {
     "烦躁":"先安静抱抱对方，耐心倾听，不要讲道理；等情绪平复之后好好沟通。",
+    "来姨妈了":"先关心肚子痛不痛，准备好温水，点个好吃的，在准备个暖宝宝，主动承担家务。",
+    "生气":"先稳住情绪，主动安抚，耐心倾听，顺着对方些，跟自己有关的直接转账。",
     "压力大":"多给予鼓励，陪伴对方歇一会，主动分担琐事，不要催促。",
     "累了":"让对方好好休息，准备温水，安静陪伴，减少打扰。",
     "想你了":"及时回应思念，抽空视频或者见面，多表达我也想你。",
-    "饿了":"询问想吃什么，可以点外卖、准备小吃，一起找点好吃的。",
+    "饿了":"询问想吃什么，给她点外卖、准备小吃，或者给她钱。",
+    "追剧":"不频繁打扰，在旁要安静点，非要聊天就多点耐心或者陪她一起看。",
     "打游戏中":"不随意打扰，约定好结束时间，打完之后好好聊天。",
     "无聊":"一起找剧、散步、聊天，或者规划短途小事打发时间。",
+    "想出门":"商量想去的地方，安排好行程，给她买新衣服，美美出片。",
     "开心":"一起分享喜悦，多多夸赞对方，留住好心情。"
 };
 
@@ -118,6 +126,41 @@ document.querySelectorAll(".role-card").forEach(card=>{
     }
 })
 
+// 根据身份渲染对应的情绪按钮
+function renderMoodButtons(){
+    const wrap = document.getElementById("moodWrap");
+    wrap.innerHTML = "";
+    const list = moodList[myRole];
+    list.forEach(item=>{
+        const btn = document.createElement("button");
+        btn.className = "mood-btn";
+        btn.dataset.val = item.val;
+        btn.innerHTML = `${item.emo} ${item.val}`;
+        btn.onclick = async ()=>{
+            const moodVal = btn.dataset.val;
+            document.querySelectorAll(".mood-btn").forEach(b=>b.classList.remove("active"));
+            btn.classList.add("active");
+            document.getElementById("syncText").innerText = "同步中...";
+            try{
+                const res = await fetch(`${BASE_URL}/api/store?room=${roomId}&role=${myRole}`,{
+                    method:"POST",
+                    headers:{"Content-Type":"application/json"},
+                    body:JSON.stringify({mood:moodVal}),
+                    signal:AbortSignal.timeout(6000)
+                });
+                if(res.ok){
+                    document.getElementById("syncText").innerText = "同步完成";
+                }else{
+                    document.getElementById("syncText").innerText = "同步失败，请检查网络";
+                }
+            }catch(err){
+                document.getElementById("syncText").innerText = "同步超时，网络不通";
+            }
+        }
+        wrap.appendChild(btn);
+    })
+}
+
 // 进入房间
 document.getElementById("enterBtn").onclick = async ()=>{
     roomId = document.getElementById("roomInput").value.trim();
@@ -127,6 +170,7 @@ document.getElementById("enterBtn").onclick = async ()=>{
     }
     document.getElementById("page-room").classList.remove("active");
     document.getElementById("page-main").classList.add("active");
+    renderMoodButtons();
     startPoll();
 }
 
@@ -136,39 +180,12 @@ document.getElementById("exitBtn").onclick = ()=>{
     document.getElementById("page-main").classList.remove("active");
     document.getElementById("page-room").classList.add("active");
     document.querySelectorAll(".role-card").forEach(c=>c.classList.remove("active"));
-    document.querySelectorAll(".mood-btn").forEach(b=>b.classList.remove("active"));
     document.getElementById("suggestPanel").style.display = "none";
     roomId = "";
     myRole = "";
 }
 
-// 点击心情UI优化
-document.querySelectorAll(".mood-btn").forEach(btn=>{
-    btn.onclick = async ()=>{
-        const moodVal = btn.dataset.val;
-        document.querySelectorAll(".mood-btn").forEach(b=>b.classList.remove("active"));
-        btn.classList.add("active");
-
-        document.getElementById("syncText").innerText = "同步中...";
-        try{
-            const res = await fetch(`${BASE_URL}/api/store?room=${roomId}&role=${myRole}`,{
-                method:"POST",
-                headers:{"Content-Type":"application/json"},
-                body:JSON.stringify({mood:moodVal}),
-                signal:AbortSignal.timeout(6000)
-            });
-            if(res.ok){
-                document.getElementById("syncText").innerText = "同步完成";
-            }else{
-                document.getElementById("syncText").innerText = "同步失败，请检查网络";
-            }
-        }catch(err){
-            document.getElementById("syncText").innerText = "同步超时，网络不通";
-        }
-    }
-})
-
-// 轮询拉取对方心情 + 自动展示解决方案
+// 轮询获取对方心情
 function startPoll(){
     if(pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(fetchOtherMood, 2500);
@@ -188,9 +205,14 @@ async function fetchOtherMood(){
         });
         const data = await resp.json();
         if(data && data.mood){
-            document.getElementById("otherEmo").innerText = emoMap[data.mood];
+            // 自动匹配表情
+            let emo = "❓";
+            const allMoods = [...moodList.girl, ...moodList.boy];
+            const find = allMoods.find(x=>x.val === data.mood);
+            if(find) emo = find.emo;
+
+            document.getElementById("otherEmo").innerText = emo;
             document.getElementById("otherText").innerText = data.mood;
-            //展示对应安抚方案
             document.getElementById("suggestPanel").style.display = "block";
             document.getElementById("suggestText").innerText = solutionMap[data.mood];
         }else{
